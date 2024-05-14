@@ -188,7 +188,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
             filename = ytdl.prepare_filename(data)
             return filename
 
-
 @bot.command(aliases = ['p'])
 async def play(ctx, url):
     song_there = os.path.isfile('song.mp3')
@@ -206,8 +205,8 @@ async def play(ctx, url):
     except youtube_dl.utils.DownloadError as e:
         await ctx.send(f"Failed to play the song: {e}")
 
-@bot.command(aliases=['s'])
-async def stream(ctx, url):
+@bot.command(aliases=['l'])
+async def live(ctx, url):
     server = ctx.message.guild
     voice_channel = server.voice_client
     try:
@@ -229,8 +228,8 @@ async def join(ctx):
         channel = ctx.message.author.voice.channel
     await channel.connect()
 
-@bot.command(aliases=['h'])
-async def halt(ctx):
+@bot.command(aliases=['b'])
+async def pause(ctx):
     voice_client = ctx.message.guild.voice_client
     if voice_client.is_playing():
         await voice_client.pause()
@@ -245,19 +244,7 @@ async def resume(ctx):
     else:
         await ctx.send("The bot was not playing anything before this. Use play_song command")
 
-@bot.command()
-async def volume(ctx, vol: int):
-    voice_client = ctx.guild.voice_client
-    if voice_client:
-        if 0 <= vol <= 100:
-            voice_client.source.volume = vol / 100
-            await ctx.send(f"Volume set to {vol}%")
-        else:
-            await ctx.send("Volume must be between 0 and 100.")
-    else:
-        await ctx.send("Bot is not connected to a voice channel.")
-
-@bot.command()
+@bot.command(aliases=['s'])
 async def stop(ctx):
     voice_client = ctx.message.guild.voice_client
     if voice_client.is_playing():
@@ -265,8 +252,8 @@ async def stop(ctx):
     else:
         await ctx.send("The bot is not playing anything at the moment.")
 
-@bot.command()
-async def leave(ctx):
+@bot.command(aliases=['d'])
+async def disconnect(ctx):
     voice_client = ctx.message.guild.voice_client
     if voice_client.is_connected():
         await voice_client.disconnect()
