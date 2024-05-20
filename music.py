@@ -1,9 +1,11 @@
 import os
 import asyncio
 import discord
+import random
 import yt_dlp as youtube_dl
 from config import PREFIX
 from discord.ext import commands
+from discord import FFmpegPCMAudio
 
 intents = discord.Intents.default()
 intents.voice_states = True
@@ -58,18 +60,8 @@ class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # @commands.command()
-    # async def play(self, ctx, *, query):
-    #     """Plays a file from the local filesystem"""
-
-    #     source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(query))
-    #     ctx.voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
-
-    #     await ctx.send(f'Now playing: {query}')
-
     @commands.command()
     async def play(self, ctx, *, url):
-        """Plays from a url (almost anything youtube_dl supports)"""
         song_there = os.path.isfile('song.mp3')
         server = ctx.message.guild
         voice_channel = server.voice_client
@@ -87,23 +79,68 @@ class Music(commands.Cog):
 
     @commands.command()
     async def stream(self, ctx, *, url):
-        """Streams from a url (same as yt, but doesn't predownload)"""
-
-        async with ctx.typing():
-            player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-            ctx.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
-
-        await ctx.send(f'Now playing: {player.title}')
+        server = ctx.message.guild
+        voice_channel = server.voice_client
+        try:
+            async with ctx.typing():
+            # Fetch the stream URL instead of downloading
+                info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+                source = discord.FFmpegPCMAudio(info['url'], **ffmpeg_options)
+                voice_channel.play(source)
+                await ctx.send('**Now playing:** {}'.format(info['title']))
+        except youtube_dl.utils.DownloadError as e:
+            await ctx.send(f"Failed to play the song: {e}")
 
     @commands.command()
-    async def volume(self, ctx, volume: int):
-        """Changes the player's volume"""
+    async def bar(self, ctx, args):
+        server = ctx.message.guild
+        voice_channel = server.voice_client
+        source = os.path.join("bar", args)
+        voice_channel.play(FFmpegPCMAudio(source=source))
 
+    @commands.command()
+    async def barandom(self, ctx):
+        # Ensure the bot is connected to a voice channel
         if ctx.voice_client is None:
-            return await ctx.send("Not connected to a voice channel.")
+            if ctx.author.voice:
+                await ctx.author.voice.channel.connect()
+                print("Bot connected to the voice channel.")
+            else:
+                await ctx.send("You are not connected to a voice channel.")
+                print("User is not connected to a voice channel.")
+                return
 
-        ctx.voice_client.source.volume = volume / 100
-        await ctx.send(f"Changed volume to {volume}%")
+        # Define the directory path
+        directory = os.path.join("bar")
+        print(f"Directory path: {directory}")
+
+        # Check if the directory exists
+        if not os.path.isdir(directory):
+            await ctx.send(f"The directory {directory} does not exist.")
+            print(f"The directory {directory} does not exist.")
+            return
+
+        # Get a list of MP3 files in the directory
+        files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) and f.endswith('.mp3')]
+        print(f"MP3 files in directory: {files}")
+
+        # Check if the directory is empty
+        if not files:
+            await ctx.send(f"No MP3 files found in the directory {directory}.")
+            print(f"No MP3 files found in the directory {directory}.")
+            return
+
+        # Choose a random file
+        source = random.choice(files)
+        source_path = os.path.join(directory, source)
+        print(f"Selected file: {source_path}")
+
+        # Play the file
+        ctx.voice_client.play(FFmpegPCMAudio(source=source_path))
+        await ctx.send(f"Now playing: {source}")
+        print(f"Now playing: {source}")
+
+        
 
     @commands.command(aliases=['b'])
     async def pause(self, ctx):
@@ -121,14 +158,14 @@ class Music(commands.Cog):
         else:
             await ctx.send("The bot was not playing anything before this. Use play_song command")
 
-    @commands.command()
+    @commands.command(aliases=['l'])
     async def leave(self, ctx):
-        """Stops and disconnects the bot from voice"""
-
         await ctx.voice_client.disconnect()
 
     @play.before_invoke
     @stream.before_invoke
+    @bar.before_invoke
+    @barandom.before_invoke
     async def ensure_voice(self, ctx):
         if ctx.voice_client is None:
             if ctx.author.voice:

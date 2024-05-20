@@ -4,7 +4,6 @@ import random
 import openai
 import asyncio
 import yt_dlp as youtube_dl
-from discord import FFmpegPCMAudio
 from discord.ext import commands
 from config import *
 from dialogs import *
@@ -154,13 +153,6 @@ async def join(ctx):
     else:
         channel = ctx.message.author.voice.channel
     await channel.connect()
-
-@bot.command()
-async def seichas(ctx):
-    server = ctx.message.guild
-    voice_channel = server.voice_client
-    source = FFmpegPCMAudio('bar/seichas.mp3')
-    voice_channel.play(source)
 
 async def main():
     async with bot:
