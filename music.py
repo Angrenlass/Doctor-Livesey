@@ -140,8 +140,6 @@ class Music(commands.Cog):
         await ctx.send(f"Now playing: {source}")
         print(f"Now playing: {source}")
 
-        
-
     @commands.command(aliases=['b'])
     async def pause(self, ctx):
         voice_client = ctx.message.guild.voice_client
