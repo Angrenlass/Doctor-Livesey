@@ -60,6 +60,11 @@ class Music(commands.Cog):
         channel = ctx.message.author.voice.channel
         await channel.connect()
 
+        server = ctx.message.guild
+        voice_channel = server.voice_client
+        source = os.path.join("bar/livesey.mp3")
+        voice_channel.play(FFmpegPCMAudio(source=source))
+
     @commands.command()
     async def play(self, ctx, *, url):
         song_there = os.path.isfile('song.mp3')
