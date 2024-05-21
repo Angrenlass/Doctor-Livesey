@@ -1,9 +1,7 @@
-import os
 import discord
 import random
 import openai
 import asyncio
-import yt_dlp as youtube_dl
 from discord.ext import commands
 from config import *
 from dialogs import *
@@ -33,7 +31,7 @@ async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
     await channel.send(f'АХАХАХАХХА, ПАН(І) ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
-# help command with permissions checking
+#help command with permissions checking
 @bot.command()
 async def help(ctx):
     if ctx.author.guild_permissions.administrator:
@@ -72,27 +70,27 @@ async def help(ctx):
     #         await ctx.send(embed=emb)
 
 #preditctions for questions 
-@bot.command(aliases = ['лівсі', 'Ливси', 'ливси'])
-async def Лівсі(ctx):
+@bot.command(aliases = ['Лівсі', 'лівсі', 'Ливси', 'ливси'])
+async def livesey(ctx):
     await ctx.reply(random.choice(list(predictions.items()))[1])
 
 #сoin
 @bot.command(aliases = ['монетка'])
-async def Монетка(ctx):
+async def coin(ctx):
     await ctx.reply(random.choice(list(coin.items()))[1])
 
 #role mentioning with clearing written command
-@bot.command(aliases = ['all', 'грати', '!'])
+@bot.command(aliases = ['all', 'грати', 'Грати', '!'])
 @commands.has_permissions(administrator = True)
-async def Грати(ctx, amount = 1):
+async def game(ctx, amount = 1):
     await ctx.channel.purge(limit = amount)
     close_friends_role = discord.utils.get(ctx.message.guild.roles, id = CLOSE_FRIENDS_ROLE)
     role = discord.utils.get(ctx.message.guild.roles, id = NEW_MEMBER_ROLE)
     await ctx.send(f"{ close_friends_role.mention }, { role.mention }, ДРУЗІ ПРЕКРАСНІ, АХАХАХХАХА, КЛИЧУ ВАС ГРАТИ!")
 
-@bot.command(aliases = ['спати', 'сон', 'Сон'])
+@bot.command(aliases = ['Спати', 'спати', 'сон', 'Сон'])
 @commands.has_permissions(administrator = True)
-async def Спати(ctx, amount = 1):
+async def sleep(ctx, amount = 1):
     await ctx.channel.purge(limit = amount)
     close_friends_role = discord.utils.get(ctx.message.guild.roles, id = CLOSE_FRIENDS_ROLE)
     andrew_role = discord.utils.get(ctx.message.guild.roles, id = ANDREW_ROLE)
@@ -145,19 +143,9 @@ async def gpt(ctx, *prompts: str):
     response = completion['choices'][0]['message']['content']
     await ctx.send(response)
 
-@bot.command(aliases=['j'])
-async def join(ctx):
-    if not ctx.message.author.voice:
-        await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
-        return
-    else:
-        channel = ctx.message.author.voice.channel
-    await channel.connect()
-
 async def main():
     async with bot:
         await bot.add_cog(Music(bot))
         await bot.start(TOKEN)
-
 
 asyncio.run(main())

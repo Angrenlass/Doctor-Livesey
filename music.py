@@ -3,15 +3,10 @@ import asyncio
 import discord
 import random
 import yt_dlp as youtube_dl
-from config import PREFIX
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 
-intents = discord.Intents.default()
-intents.voice_states = True
-bot = commands.Bot(command_prefix=PREFIX, intents=discord.Intents.all())
-bot.remove_command("help")
-
+#YT_DLP settings
 youtube_dl.utils.bug_reports_message = lambda: ''
 
 ytdl_format_options = {
@@ -24,8 +19,8 @@ ytdl_format_options = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0', # bind to ipv4 since ipv6 addresses cause issues sometimes
-    'outtmpl': 'song.mp3' # Temporary file template
+    'source_address': '0.0.0.0',
+    'outtmpl': 'song.mp3' #Temporary file template
 }
 
 ffmpeg_options = {
@@ -46,19 +41,24 @@ class YTDLSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
         if 'entries' in data:
-            # take first item from a playlist
+            #Take first item from a playlist
             data = data['entries'][0]
         if stream:
-            # If streaming, directly return the URL
+            #If streaming, directly return the URL
             return {'title': data['title'], 'url': data['url']}
         else:
-            # If downloading, prepare the filename
+            #If downloading, prepare the filename
             filename = ytdl.prepare_filename(data)
             return filename
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.command(aliases=['j'])
+    async def join(self, ctx):
+        channel = ctx.message.author.voice.channel
+        await channel.connect()
 
     @commands.command()
     async def play(self, ctx, *, url):
@@ -73,9 +73,9 @@ class Music(commands.Cog):
                 info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
                 filename = await YTDLSource.from_url(url, loop=self.bot.loop)
                 voice_channel.play(discord.FFmpegPCMAudio(executable = "/bin/ffmpeg", source=filename))
-            await ctx.send('**Now playing:** {}'.format(info['title']))
+            await ctx.send('**Граю:** {}'.format(info['title']))
         except youtube_dl.utils.DownloadError as e:
-            await ctx.send(f"Failed to play the song: {e}")
+            await ctx.send(f"Не вдалося зіграти: {e}")
 
     @commands.command()
     async def stream(self, ctx, *, url):
@@ -83,62 +83,39 @@ class Music(commands.Cog):
         voice_channel = server.voice_client
         try:
             async with ctx.typing():
-            # Fetch the stream URL instead of downloading
+            #Fetch the stream URL instead of downloading
                 info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
                 source = discord.FFmpegPCMAudio(info['url'], **ffmpeg_options)
                 voice_channel.play(source)
-                await ctx.send('**Now playing:** {}'.format(info['title']))
+                await ctx.send('**Граю:** {}'.format(info['title']))
         except youtube_dl.utils.DownloadError as e:
-            await ctx.send(f"Failed to play the song: {e}")
+            await ctx.send(f"Не вдалось зіграти: {e}")
 
-    @commands.command()
+    @commands.command(aliases=['br'])
     async def bar(self, ctx, args):
         server = ctx.message.guild
         voice_channel = server.voice_client
+        if not args.endswith('.mp3'):
+            args += '.mp3'
         source = os.path.join("bar", args)
         voice_channel.play(FFmpegPCMAudio(source=source))
 
-    @commands.command()
+    #Command that choosing random mp3 from bar directory and playing it in voice
+    @commands.command(aliases=['brr'])
     async def barandom(self, ctx):
-        # Ensure the bot is connected to a voice channel
-        if ctx.voice_client is None:
-            if ctx.author.voice:
-                await ctx.author.voice.channel.connect()
-                print("Bot connected to the voice channel.")
-            else:
-                await ctx.send("You are not connected to a voice channel.")
-                print("User is not connected to a voice channel.")
-                return
-
-        # Define the directory path
+        #Define the directory path
         directory = os.path.join("bar")
-        print(f"Directory path: {directory}")
-
-        # Check if the directory exists
-        if not os.path.isdir(directory):
-            await ctx.send(f"The directory {directory} does not exist.")
-            print(f"The directory {directory} does not exist.")
-            return
-
-        # Get a list of MP3 files in the directory
+        #Get a list of mp3 files in the directory
         files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) and f.endswith('.mp3')]
-        print(f"MP3 files in directory: {files}")
-
-        # Check if the directory is empty
+        #Check if the directory is empty( maybe it would be empty for you, cause I don't want to post my sound bar directory:) )
         if not files:
-            await ctx.send(f"No MP3 files found in the directory {directory}.")
-            print(f"No MP3 files found in the directory {directory}.")
+            await ctx.send("АХАХ, СЕР, Я НЕ МАЮ ЩО ГРАТИ!!!!")
             return
-
-        # Choose a random file
+        #Choose a random file
         source = random.choice(files)
         source_path = os.path.join(directory, source)
-        print(f"Selected file: {source_path}")
-
-        # Play the file
+        #Play the file
         ctx.voice_client.play(FFmpegPCMAudio(source=source_path))
-        await ctx.send(f"Now playing: {source}")
-        print(f"Now playing: {source}")
 
     @commands.command(aliases=['b'])
     async def pause(self, ctx):
@@ -146,7 +123,7 @@ class Music(commands.Cog):
         if voice_client.is_playing():
             await voice_client.pause()
         else:
-            await ctx.send("The bot is not playing anything at the moment.")
+            await ctx.send("СЕР, Я Ж НІЧОГО НЕ ГРАЮ, АХАХАХХА")
     
     @commands.command(aliases=['r'])
     async def resume(self, ctx):
@@ -154,7 +131,7 @@ class Music(commands.Cog):
         if voice_client.is_paused():
             await voice_client.resume()
         else:
-            await ctx.send("The bot was not playing anything before this. Use play_song command")
+            await ctx.send("СЕР, Я Ж НІЧОГО НЕ ГРАЮ, АХАХАХХА")
 
     @commands.command(aliases=['l'])
     async def leave(self, ctx):
@@ -169,7 +146,7 @@ class Music(commands.Cog):
             if ctx.author.voice:
                 await ctx.author.voice.channel.connect()
             else:
-                await ctx.send("You are not connected to a voice channel.")
+                await ctx.send("СЕР, ВИ НІКУДИ НЕ ПІДʼЄДНАНІ, АХАХА")
                 raise commands.CommandError("Author not connected to a voice channel.")
         elif ctx.voice_client.is_playing():
             ctx.voice_client.stop()
