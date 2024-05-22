@@ -3,6 +3,7 @@ import random
 import openai
 import asyncio
 from discord.ext import commands
+from discord import Embed
 from config import *
 from dialogs import *
 from music import *
@@ -31,33 +32,103 @@ async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
     await channel.send(f'АХАХАХАХХА, ПАН(І) ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
-#help command with permissions checking
+help_pages = {
+    'general': {
+        'Command 1': 'Description 1',
+        'Command 2': 'Description 2',
+        'Command 3': 'Description 3'
+    },
+    'administrator': {
+        'Admin Command 1': 'Admin Description 1',
+        'Admin Command 2': 'Admin Description 2',
+        'Admin Command 3': 'Admin Description 3'
+    }
+}
+
+async def help_embed(ctx, category):
+    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands')
+    for command, description in help_pages[category].items():
+        embed.add_field(name=command, value=description, inline=False)
+    return embed
+
 @bot.command()
 async def help(ctx):
-    if ctx.author.guild_permissions.administrator:
-        emb = discord.Embed(
-            title="Навігація вказівками",
-            color=0x969696
-        )
-        emb.add_field(name=".Грати", value="покличу всіх пограти", inline=False)
-        emb.add_field(name=".Спати", value="вкладу всіх спати", inline=False)
-        emb.add_field(name=".clear (число)", value="почистити чат на визначену кількість повідомлень, включно із командою", inline=False)
-        emb.add_field(name=".mute (тег гравця)", value="замьютити учасника", inline=False)
-        emb.add_field(name=".unmute (тег гравця)", value= "анмьютнути учасника", inline=False)
-        emb.add_field(name=".kick (тег гравця)", value="кікнути учасника", inline=False)
-        emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
-        emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
-        emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
-        await ctx.send(embed=emb)
-    else:
-        emb = discord.Embed(
-            title="Навігація вказівками",
-            color=0x969696
-        )
-        emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
-        emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
-        emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
-        await ctx.send(embed=emb)
+    categories = list(help_pages.keys())
+    page = 0
+    message = await ctx.send(embed=await help_embed(ctx, categories[page]))
+
+    await message.add_reaction('◀️')
+    await message.add_reaction('▶️')
+
+    def check(reaction, user):
+        return user == ctx.author and str(reaction.emoji) in ['◀️', '▶️']
+
+    while True:
+        try:
+            reaction, user = await bot.wait_for('reaction_add', timeout=60.0, check=check)
+
+            if str(reaction.emoji) == '▶️':
+                page = (page + 1) % len(categories)
+            elif str(reaction.emoji) == '◀️':
+                page = (page - 1) % len(categories)
+
+            await message.edit(embed=await help_embed(ctx, categories[page]))
+            await message.remove_reaction(reaction, user)
+
+        except asyncio.TimeoutError:
+            break
+
+
+# async def help_parser(ctx, category):
+#     if ctx.author.guild_permissions.administrator:
+#         if category == 'administrator':
+#             emb = discord.Embed(title='Навігація вказівками для адміністраторів')
+#             for adm_key, adm_value in help_administrator_command.items():
+#                 emb.add_field(name=bot.command_prefix+adm_key, value=adm_value, inline=False)
+#             return emb
+#         elif category == 'music':
+#             emb = discord.Embed(title='Навігація вказівками для музики')
+#             for music_key, music_value in music_command.items():
+#                 emb.add_field(name=bot.command_prefix+music_key, value=music_value, inline=False)
+#             return emb
+#         else:
+#             return discord.Embed(title='Невірна категорія')
+#     else:
+#         return discord.Embed(title='Навігація вказівками')
+
+# @bot.command()
+# async def help(ctx, category='general'):
+#     await ctx.send(embed=await help_parser(ctx, category))
+        
+          
+
+#help command with permissions checking
+# @bot.command()
+# async def help(ctx):
+#     if ctx.author.guild_permissions.administrator:
+#         emb = discord.Embed(
+#             title="Навігація вказівками",
+#             color=0x969696
+#         )
+#         emb.add_field(name=".Грати", value="покличу всіх пограти", inline=False)
+#         emb.add_field(name=".Спати", value="вкладу всіх спати", inline=False)
+#         emb.add_field(name=".clear (число)", value="почистити чат на визначену кількість повідомлень, включно із командою", inline=False)
+#         emb.add_field(name=".mute (тег гравця)", value="замьютити учасника", inline=False)
+#         emb.add_field(name=".unmute (тег гравця)", value= "анмьютнути учасника", inline=False)
+#         emb.add_field(name=".kick (тег гравця)", value="кікнути учасника", inline=False)
+#         emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
+#         emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
+#         emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
+#         await ctx.send(embed=emb)
+#     else:
+#         emb = discord.Embed(
+#             title="Навігація вказівками",
+#             color=0x969696
+#         )
+#         emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
+#         emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
+#         emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
+#         await ctx.send(embed=emb)
     # if ctx.author.guild_permissions.administrator:
     #     for adm_key, adm_value in help_administrator_command.items():
     #         emb = discord.Embed(title='Навігація вказівками')
@@ -75,7 +146,7 @@ async def livesey(ctx):
     await ctx.reply(random.choice(list(predictions.items()))[1])
 
 #сoin
-@bot.command(aliases = ['монетка'])
+@bot.command(aliases = ['монетка', 'Монетка'])
 async def coin(ctx):
     await ctx.reply(random.choice(list(coin.items()))[1])
 
@@ -127,21 +198,6 @@ async def unmute(ctx, member: discord.Member):
     mute_role = discord.utils.get(ctx.message.guild.roles, id = MUTED_ROLE)
     await member.remove_roles(mute_role)
     await ctx.send(f"{ member.mention }, ПРЕПРОШУЮ, АХАХАХХА, ЩО ВИ ТАМ КАЗАЛИ?")
-
-@bot.command()
-async def gpt(ctx, *prompts: str):
-    message_list = [{'role': 'user', 'content': prompt} for prompt in prompts]
-
-    completion = openai.ChatCompletion.create(
-        model='gpt-3.5-turbo',
-        messages=message_list,
-        max_tokens = 1000,
-        frequency_penalty=0.0,
-        temperature=0
-    )
-    
-    response = completion['choices'][0]['message']['content']
-    await ctx.send(response)
 
 async def main():
     async with bot:
