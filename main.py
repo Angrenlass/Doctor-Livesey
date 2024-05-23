@@ -1,14 +1,13 @@
 import discord
 import random
-import openai
 import asyncio
+import yt_dlp as youtube_dl
+from discord import FFmpegPCMAudio
 from discord.ext import commands
-from discord import Embed
 from config import *
 from dialogs import *
 from music import *
 
-openai.api_key = OPENAI_TOKEN
 intents = discord.Intents.default()
 intents.voice_states = True
 bot = commands.Bot(command_prefix=PREFIX, intents=discord.Intents.all())
@@ -32,113 +31,70 @@ async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
     await channel.send(f'АХАХАХАХХА, ПАН(І) ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
-help_pages = {
-    'general': {
-        'Command 1': 'Description 1',
-        'Command 2': 'Description 2',
-        'Command 3': 'Description 3'
-    },
-    'administrator': {
-        'Admin Command 1': 'Admin Description 1',
-        'Admin Command 2': 'Admin Description 2',
-        'Admin Command 3': 'Admin Description 3'
-    }
-}
+async def help_adm_embed(ctx, category):
+    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x969696)
+    for command, description in help_adm_pages[category].items():
+        embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
+    return embed
 
-async def help_embed(ctx, category):
-    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands')
-    for command, description in help_pages[category].items():
-        embed.add_field(name=command, value=description, inline=False)
+async def help_usr_embed(ctx, category):
+    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x969696)
+    for command, description in help_usr_pages[category].items():
+        embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
     return embed
 
 @bot.command()
 async def help(ctx):
-    categories = list(help_pages.keys())
-    page = 0
-    message = await ctx.send(embed=await help_embed(ctx, categories[page]))
+    if ctx.author.guild_permissions.administrator:
+        categories = list(help_adm_pages.keys())
+        page = 0
+        message = await ctx.send(embed=await help_adm_embed(ctx, categories[page]))
 
-    await message.add_reaction('◀️')
-    await message.add_reaction('▶️')
+        await message.add_reaction('◀️')
+        await message.add_reaction('▶️')
 
-    def check(reaction, user):
-        return user == ctx.author and str(reaction.emoji) in ['◀️', '▶️']
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ['◀️', '▶️']
 
-    while True:
-        try:
-            reaction, user = await bot.wait_for('reaction_add', timeout=60.0, check=check)
+        while True:
+            try:
+                reaction, user = await bot.wait_for('reaction_add', timeout=60.0, check=check)
 
-            if str(reaction.emoji) == '▶️':
-                page = (page + 1) % len(categories)
-            elif str(reaction.emoji) == '◀️':
-                page = (page - 1) % len(categories)
+                if str(reaction.emoji) == '▶️':
+                    page = (page + 1) % len(categories)
+                elif str(reaction.emoji) == '◀️':
+                    page = (page - 1) % len(categories)
 
-            await message.edit(embed=await help_embed(ctx, categories[page]))
-            await message.remove_reaction(reaction, user)
+                await message.edit(embed=await help_adm_embed(ctx, categories[page]))
+                await message.remove_reaction(reaction, user)
 
-        except asyncio.TimeoutError:
-            break
+            except asyncio.TimeoutError:
+                break
+    else:
+        categories = list(help_usr_pages.keys())
+        page = 0
+        message = await ctx.send(embed=await help_usr_embed(ctx, categories[page]))
 
+        await message.add_reaction('◀️')
+        await message.add_reaction('▶️')
 
-# async def help_parser(ctx, category):
-#     if ctx.author.guild_permissions.administrator:
-#         if category == 'administrator':
-#             emb = discord.Embed(title='Навігація вказівками для адміністраторів')
-#             for adm_key, adm_value in help_administrator_command.items():
-#                 emb.add_field(name=bot.command_prefix+adm_key, value=adm_value, inline=False)
-#             return emb
-#         elif category == 'music':
-#             emb = discord.Embed(title='Навігація вказівками для музики')
-#             for music_key, music_value in music_command.items():
-#                 emb.add_field(name=bot.command_prefix+music_key, value=music_value, inline=False)
-#             return emb
-#         else:
-#             return discord.Embed(title='Невірна категорія')
-#     else:
-#         return discord.Embed(title='Навігація вказівками')
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ['◀️', '▶️']
 
-# @bot.command()
-# async def help(ctx, category='general'):
-#     await ctx.send(embed=await help_parser(ctx, category))
-        
-          
+        while True:
+            try:
+                reaction, user = await bot.wait_for('reaction_add', timeout=60.0, check=check)
 
-#help command with permissions checking
-# @bot.command()
-# async def help(ctx):
-#     if ctx.author.guild_permissions.administrator:
-#         emb = discord.Embed(
-#             title="Навігація вказівками",
-#             color=0x969696
-#         )
-#         emb.add_field(name=".Грати", value="покличу всіх пограти", inline=False)
-#         emb.add_field(name=".Спати", value="вкладу всіх спати", inline=False)
-#         emb.add_field(name=".clear (число)", value="почистити чат на визначену кількість повідомлень, включно із командою", inline=False)
-#         emb.add_field(name=".mute (тег гравця)", value="замьютити учасника", inline=False)
-#         emb.add_field(name=".unmute (тег гравця)", value= "анмьютнути учасника", inline=False)
-#         emb.add_field(name=".kick (тег гравця)", value="кікнути учасника", inline=False)
-#         emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
-#         emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
-#         emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
-#         await ctx.send(embed=emb)
-#     else:
-#         emb = discord.Embed(
-#             title="Навігація вказівками",
-#             color=0x969696
-#         )
-#         emb.add_field(name=".gpt (текст)", value="застосовуй chatgpt прям на сервері", inline=False)
-#         emb.add_field(name=".Лівсі (запитання)", value="запитати в мене щось та отримай передбачення", inline=False)
-#         emb.add_field(name=".Монетка", value="підкинути монетку", inline=False)
-#         await ctx.send(embed=emb)
-    # if ctx.author.guild_permissions.administrator:
-    #     for adm_key, adm_value in help_administrator_command.items():
-    #         emb = discord.Embed(title='Навігація вказівками')
-    #         emb.add_field(name=adm_key, value=adm_value, inline=False)
-    #         await ctx.send(embed=emb)
-    # else:
-    #     for usr_key, usr_value in help_user_command:
-    #         emb = discord.Embed(title='Навігація вказівками')
-    #         emb.add_field(name=usr_key, value=usr_value)
-    #         await ctx.send(embed=emb)
+                if str(reaction.emoji) == '▶️':
+                    page = (page + 1) % len(categories)
+                elif str(reaction.emoji) == '◀️':
+                    page = (page - 1) % len(categories)
+
+                await message.edit(embed=await help_usr_embed(ctx, categories[page]))
+                await message.remove_reaction(reaction, user)
+
+            except asyncio.TimeoutError:
+                break
 
 #preditctions for questions 
 @bot.command(aliases = ['Лівсі', 'лівсі', 'Ливси', 'ливси'])
