@@ -1,8 +1,6 @@
 import discord
 import random
 import asyncio
-import yt_dlp as youtube_dl
-from discord import FFmpegPCMAudio
 from discord.ext import commands
 from config import *
 from dialogs import *
@@ -29,16 +27,16 @@ async def on_member_join(member):
 @bot.event
 async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
-    await channel.send(f'АХАХАХАХХА, ПАН(І) ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
+    await channel.send(f'АХАХАХАХХА, ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
 async def help_adm_embed(ctx, category):
-    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x969696)
+    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x356FFF)
     for command, description in help_adm_pages[category].items():
         embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
     return embed
 
 async def help_usr_embed(ctx, category):
-    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x969696)
+    embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x356FFF)
     for command, description in help_usr_pages[category].items():
         embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
     return embed
