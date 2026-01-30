@@ -6,21 +6,19 @@ import yt_dlp as youtube_dl
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 
-#YT_DLP settings
-youtube_dl.utils.bug_reports_message = lambda: ''
-
 ytdl_format_options = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=webm]/bestaudio/best',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'opus',
+        'preferredquality': '192',
+    }],
+    'outtmpl': '%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
+    'quiet': False,
     'default_search': 'auto',
-    'source_address': '0.0.0.0',
-    'outtmpl': 'song.mp3' #Temporary file template
+    'ffmpeg_location': r'C:\ffmpeg\bin',
 }
 
 ffmpeg_options = {
@@ -65,25 +63,8 @@ class Music(commands.Cog):
         source = os.path.join("bar/livesey.mp3")
         voice_channel.play(FFmpegPCMAudio(source=source))
 
-    @commands.command()
+    @commands.command(aliases=['p'])
     async def play(self, ctx, *, url):
-        song_there = os.path.isfile('song.mp3')
-        server = ctx.message.guild
-        voice_channel = server.voice_client
-        try:
-            if song_there:
-                os.remove(os.path.join(os.getcwd(),"song.mp3"))
-            
-            async with ctx.typing():
-                info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                filename = await YTDLSource.from_url(url, loop=self.bot.loop)
-                voice_channel.play(discord.FFmpegPCMAudio(executable = "/bin/ffmpeg", source=filename))
-            await ctx.send('**Граю:** {}'.format(info['title']))
-        except youtube_dl.utils.DownloadError as e:
-            await ctx.send(f"Не вдалося зіграти: {e}")
-
-    @commands.command()
-    async def stream(self, ctx, *, url):
         server = ctx.message.guild
         voice_channel = server.voice_client
         try:
@@ -143,7 +124,6 @@ class Music(commands.Cog):
         await ctx.voice_client.disconnect()
 
     @play.before_invoke
-    @stream.before_invoke
     @bar.before_invoke
     @barandom.before_invoke
     async def ensure_voice(self, ctx):

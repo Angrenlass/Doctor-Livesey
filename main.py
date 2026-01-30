@@ -14,7 +14,7 @@ bot.remove_command("help")
 @bot.event
 async def on_ready():
     print('Bot connected')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="карту"))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="АХАХАХАХАХАХАХАХАХАХАХАХАХАХАХАХА"))
 
 @bot.event
 async def on_member_join(member):
