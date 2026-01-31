@@ -22,6 +22,11 @@ ytdl_format_options = {
 }
 
 ffmpeg_options = {
+    'before_options': (
+        '-reconnect 1 '
+        '-reconnect_streamed 1 '
+        '-reconnect_delay_max 5'
+    ),
     'options': '-vn'
 }
 
@@ -73,7 +78,7 @@ class Music(commands.Cog):
                 info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
                 source = discord.FFmpegPCMAudio(info['url'], **ffmpeg_options)
                 voice_channel.play(source)
-                await ctx.send('**Граю:** {}'.format(info['title']))
+                await ctx.send('Граю: {}'.format(info['title']))
         except youtube_dl.utils.DownloadError as e:
             await ctx.send(f"Не вдалось зіграти: {e}")
 
