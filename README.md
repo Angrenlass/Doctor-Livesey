@@ -39,8 +39,6 @@
 git clone https://github.com/Angrenlass/Doctor-Livesey.git
 cd Doctor-Livesey
 
-
-
 Python та віртуальне середовище:
 Переконайся, що встановлений Python 3.11
 python --version
