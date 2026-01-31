@@ -102,7 +102,7 @@ async def livesey(ctx):
 #сoin
 @bot.command(aliases = ['монетка', 'Монетка'])
 async def coin(ctx):
-    await ctx.reply(random.choice(list(coin.items()))[1])
+    await ctx.reply(random.choice(list(casino.items()))[1])
 
 #role mentioning with clearing written command
 @bot.command(aliases = ['all', 'грати', 'Грати', '!'])
