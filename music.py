@@ -3,17 +3,13 @@ import asyncio
 import discord
 import random
 import yt_dlp as youtube_dl
+from collections import deque
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 
+# Конфігурація yt-dlp (тільки стрімінг)
 ytdl_format_options = {
     'format': 'bestaudio[ext=webm]/bestaudio/best',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'opus',
-        'preferredquality': '192',
-    }],
-    'outtmpl': '%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
     'quiet': False,
@@ -32,103 +28,212 @@ ffmpeg_options = {
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
+
+# Отримати інфу про трек
+async def fetch_info(url: str, loop=None) -> dict:
+    # Повертає словник з інфою про трек (без завантаження)
+    loop = loop or asyncio.get_event_loop()
+    data = await loop.run_in_executor(
+        None, lambda: ytdl.extract_info(url, download=False)
+    )
+    if 'entries' in data:
+        data = data['entries'][0]
+    return data
+
+
+# Джерело аудіо
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
         self.data = data
         self.title = data.get('title')
-        self.url = ""
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-        if 'entries' in data:
-            #Take first item from a playlist
-            data = data['entries'][0]
-        if stream:
-            #If streaming, directly return the URL
-            return {'title': data['title'], 'url': data['url']}
-        else:
-            #If downloading, prepare the filename
-            filename = ytdl.prepare_filename(data)
-            return filename
+    def from_info(cls, data: dict):
+        # Створює джерело зі стрім-URL
+        source = discord.FFmpegPCMAudio(data['url'], **ffmpeg_options)
+        return cls(source, data=data)
 
+# Cog
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # guild_id → deque of info-dicts
+        self._queues: dict[int, deque] = {}
 
+    # Внутрішні хелпери
+
+    def get_queue(self, guild_id: int) -> deque:
+        if guild_id not in self._queues:
+            self._queues[guild_id] = deque()
+        return self._queues[guild_id]
+
+    def play_next(self, ctx):
+        # Callback після завершення треку — запускає наступний з черги
+        queue = self.get_queue(ctx.guild.id)
+        if queue:
+            info = queue.popleft()
+            asyncio.run_coroutine_threadsafe(
+                self._play_info(ctx, info), self.bot.loop
+            )
+
+    async def _play_info(self, ctx, info: dict):
+        # Створити джерело і почати відтворення
+        vc = ctx.guild.voice_client
+        if not vc:
+            return
+
+        try:
+            source = YTDLSource.from_info(info)
+        except Exception as e:
+            await ctx.send(f"АХАХ, СЕР, ЩОСЬ ПІШЛО НЕ ТАК: {e}")
+            self.play_next(ctx)
+            return
+
+        vc.play(source, after=lambda e: self.play_next(ctx))
+        await ctx.send(f"**Граю:** {info['title']}")
+
+    # Команди
     @commands.command(aliases=['j'])
     async def join(self, ctx):
+        # Зайти в голосовий канал і зіграти livesey.mp3
         channel = ctx.message.author.voice.channel
         await channel.connect()
-
-        server = ctx.message.guild
-        voice_channel = server.voice_client
-        source = os.path.join("bar/livesey.mp3")
-        voice_channel.play(FFmpegPCMAudio(source=source))
+        vc = ctx.guild.voice_client
+        vc.play(FFmpegPCMAudio(source=os.path.join("bar", "livesey.mp3")))
 
     @commands.command(aliases=['p'])
-    async def play(self, ctx, *, url):
-        server = ctx.message.guild
-        voice_channel = server.voice_client
-        try:
-            async with ctx.typing():
-            #Fetch the stream URL instead of downloading
-                info = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                source = discord.FFmpegPCMAudio(info['url'], **ffmpeg_options)
-                voice_channel.play(source)
-                await ctx.send('Граю: {}'.format(info['title']))
-        except youtube_dl.utils.DownloadError as e:
-            await ctx.send(f"Не вдалось зіграти: {e}")
+    async def play(self, ctx, *, url: str):
+        # Якщо нічого не грає — починає одразу. Якщо грає — додає в чергу
+        async with ctx.typing():
+            try:
+                info = await fetch_info(url, loop=self.bot.loop)
+            except Exception as e:
+                await ctx.send(f"АХАХ, СЕР, НЕ ВДАЛОСЬ ЗНАЙТИ: {e}")
+                return
+
+        vc = ctx.guild.voice_client
+        if vc and vc.is_playing():
+            self.get_queue(ctx.guild.id).append(info)
+            duration = info.get('duration') or 0
+            mins, secs = divmod(duration, 60)
+            await ctx.send(
+                f"**Додано до черги:** {info['title']} "
+                f"[{mins}:{secs:02d}] · позиція {len(self.get_queue(ctx.guild.id))}"
+            )
+        else:
+            await self._play_info(ctx, info)
+
+    @commands.command(aliases=['q'])
+    async def queue(self, ctx, *, url: str = None):
+        
+        #.q <посилання> — додати трек в кінець черги.
+        # .q             — показати поточну чергу.
+        
+        if url is None:
+            q = self.get_queue(ctx.guild.id)
+            vc = ctx.guild.voice_client
+
+            if not q and (not vc or not vc.is_playing()):
+                await ctx.send("АХАХ, СЕР, ЧЕРГА ПОРОЖНЯ!")
+                return
+
+            lines = []
+            if vc and vc.is_playing() and hasattr(vc.source, 'title'):
+                lines.append(f"🎵 **Зараз грає:** {vc.source.title}")
+
+            if q:
+                lines.append("\n**Черга:**")
+                for i, info in enumerate(q, 1):
+                    duration = info.get('duration') or 0
+                    mins, secs = divmod(duration, 60)
+                    lines.append(f"  {i}. {info['title']} [{mins}:{secs:02d}]")
+            else:
+                lines.append("\nЧерга порожня (це останній трек)")
+
+            await ctx.send('\n'.join(lines))
+            return
+
+        # Додати в чергу
+        async with ctx.typing():
+            try:
+                info = await fetch_info(url, loop=self.bot.loop)
+            except Exception as e:
+                await ctx.send(f"АХАХ, СЕР, НЕ ВДАЛОСЬ ЗНАЙТИ: {e}")
+                return
+
+        vc = ctx.guild.voice_client
+        if not vc or not vc.is_playing():
+            await self._play_info(ctx, info)
+        else:
+            self.get_queue(ctx.guild.id).append(info)
+            duration = info.get('duration') or 0
+            mins, secs = divmod(duration, 60)
+            await ctx.send(
+                f"**Додано до черги:** {info['title']} "
+                f"[{mins}:{secs:02d}] · позиція {len(self.get_queue(ctx.guild.id))}"
+            )
+
+    @commands.command(aliases=['s'])
+    async def skip(self, ctx):
+        vc = ctx.guild.voice_client
+        if vc and vc.is_playing():
+            vc.stop()  # after= callback запустить наступний
+            await ctx.send("АХАХ, ПРОПУСКАЮ!")
+        else:
+            await ctx.send("СЕР, Я Ж НІЧОГО НЕ ГРАЮ, АХАХАХХА")
+
+    @commands.command(aliases=['qc'])
+    @commands.has_permissions(administrator=True)
+    async def qclear(self, ctx):
+        self.get_queue(ctx.guild.id).clear()
+        await ctx.send("АХАХ, ЧЕРГА ОЧИЩЕНА!")
 
     @commands.command(aliases=['br'])
-    async def bar(self, ctx, args):
-        server = ctx.message.guild
-        voice_channel = server.voice_client
+    async def bar(self, ctx, args: str):
+        vc = ctx.guild.voice_client
         if not args.endswith('.mp3'):
             args += '.mp3'
-        source = os.path.join("bar", args)
-        voice_channel.play(FFmpegPCMAudio(source=source))
+        vc.play(FFmpegPCMAudio(source=os.path.join("bar", args)))
 
-    #Command that choosing random mp3 from bar directory and playing it in voice
     @commands.command(aliases=['brr'])
     async def barandom(self, ctx):
-        #Define the directory path
         directory = os.path.join("bar")
-        #Get a list of mp3 files in the directory
-        files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f)) and f.endswith('.mp3')]
-        #Check if the directory is empty( maybe it would be empty for you, cause I don't want to post my sound bar directory:) )
+        files = [
+            f for f in os.listdir(directory)
+            if os.path.isfile(os.path.join(directory, f)) and f.endswith('.mp3')
+        ]
         if not files:
             await ctx.send("АХАХ, СЕР, Я НЕ МАЮ ЩО ГРАТИ!!!!")
             return
-        #Choose a random file
         source = random.choice(files)
-        source_path = os.path.join(directory, source)
-        #Play the file
-        ctx.voice_client.play(FFmpegPCMAudio(source=source_path))
+        ctx.voice_client.play(FFmpegPCMAudio(source=os.path.join(directory, source)))
 
     @commands.command(aliases=['b'])
     async def pause(self, ctx):
-        voice_client = ctx.message.guild.voice_client
-        if voice_client.is_playing():
-            await voice_client.pause()
+        vc = ctx.guild.voice_client
+        if vc and vc.is_playing():
+            await vc.pause()
         else:
             await ctx.send("СЕР, Я Ж НІЧОГО НЕ ГРАЮ, АХАХАХХА")
-    
-    @commands.command(aliases=['r'])
+
+    @commands.command(aliases=['res'])
     async def resume(self, ctx):
-        voice_client = ctx.message.guild.voice_client
-        if voice_client.is_paused():
-            await voice_client.resume()
+        vc = ctx.guild.voice_client
+        if vc and vc.is_paused():
+            await vc.resume()
         else:
             await ctx.send("СЕР, Я Ж НІЧОГО НЕ ГРАЮ, АХАХАХХА")
 
     @commands.command(aliases=['l'])
     async def leave(self, ctx):
+        self.get_queue(ctx.guild.id).clear()
         await ctx.voice_client.disconnect()
 
+    # ── Before invoke ──────────────────────────
+
     @play.before_invoke
+    @queue.before_invoke
     @bar.before_invoke
     @barandom.before_invoke
     async def ensure_voice(self, ctx):
@@ -138,5 +243,3 @@ class Music(commands.Cog):
             else:
                 await ctx.send("СЕР, ВИ НІКУДИ НЕ ПІДʼЄДНАНІ, АХАХА")
                 raise commands.CommandError("Author not connected to a voice channel.")
-        elif ctx.voice_client.is_playing():
-            ctx.voice_client.stop()

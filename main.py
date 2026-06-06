@@ -5,6 +5,10 @@ from discord.ext import commands
 from config import *
 from dialogs import *
 from music import *
+import logging
+import anthropic
+
+discord.utils.setup_logging(level=logging.DEBUG)
 
 intents = discord.Intents.default()
 intents.voice_states = True
@@ -29,13 +33,13 @@ async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
     await channel.send(f'АХАХАХАХХА, ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
-async def help_adm_embed(ctx, category):
+async def help_adm_embed(category):
     embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x356FFF)
     for command, description in help_adm_pages[category].items():
         embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
     return embed
 
-async def help_usr_embed(ctx, category):
+async def help_usr_embed(category):
     embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x356FFF)
     for command, description in help_usr_pages[category].items():
         embed.add_field(name=bot.command_prefix+command, value=description, inline=False)
@@ -94,10 +98,27 @@ async def help(ctx):
             except asyncio.TimeoutError:
                 break
 
-#preditctions for questions 
-@bot.command(aliases = ['Лівсі', 'лівсі', 'Ливси', 'ливси'])
-async def livesey(ctx):
-    await ctx.reply(random.choice(list(predictions.items()))[1])
+# chat with Livesey
+LIVESEY_PROMPT = """Ти - Доктор Лівсі, персонаж з українського мультфільму "Острів Скарбів". 
+Ти дуже веселий, постійно смієшся "АХАХАХА", говориш з гумором і трохи зверхньо але доброзичливо. 
+Звертаєшся до людей "СЕР". Пишеш КАПСЛОКОМ. Відповідаєш коротко — 1-2 речення максимум.
+Відповідай на питання користувача в цьому стилі."""
+
+@bot.command(aliases=['Лівсі', 'лівсі', 'Ливси', 'ливси'])
+async def livesey(ctx, *, question: str = None):
+    if question is None:
+        await ctx.reply("АХАХА, СЕР, А ПИТАННЯ ДЕ?!")
+        return
+
+    async with ctx.typing():
+        client = anthropic.Anthropic(api_key=ANTHROPIC_TOKEN)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            system=LIVESEY_PROMPT,
+            messages=[{"role": "user", "content": question}]
+        )
+        await ctx.reply(message.content[0].text)
 
 #сoin
 @bot.command(aliases = ['монетка', 'Монетка'])
