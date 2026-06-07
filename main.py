@@ -7,6 +7,8 @@ from dialogs import *
 from music import *
 import logging
 import anthropic
+from collections import defaultdict, deque
+
 
 discord.utils.setup_logging(level=logging.DEBUG)
 
@@ -104,6 +106,10 @@ LIVESEY_PROMPT = """Ти - Доктор Лівсі, персонаж з укра
 Звертаєшся до людей "СЕР". Пишеш КАПСЛОКОМ. Відповідаєш коротко — 1-2 речення максимум.
 Відповідай на питання користувача в цьому стилі."""
 
+# Зберігаємо останні 5 повідомлень для кожного каналу
+# channel_id → deque of {"role": ..., "content": ...}
+livesey_history: dict[int, deque] = defaultdict(lambda: deque(maxlen=10))
+
 @bot.command(aliases=['Лівсі', 'лівсі', 'Ливси', 'ливси'])
 async def livesey(ctx, *, question: str = None):
     if question is None:
@@ -111,14 +117,28 @@ async def livesey(ctx, *, question: str = None):
         return
 
     async with ctx.typing():
-        client = anthropic.Anthropic(api_key=ANTHROPIC_TOKEN)
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=150,
-            system=LIVESEY_PROMPT,
-            messages=[{"role": "user", "content": question}]
-        )
-        await ctx.reply(message.content[0].text)
+        try:
+            history = livesey_history[ctx.channel.id]
+            
+            # Додаємо нове питання в історію
+            history.append({"role": "user", "content": f"{ctx.author.display_name}: {question}"})
+
+            client = anthropic.Anthropic(api_key=ANTHROPIC_TOKEN)
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=150,
+                system=LIVESEY_PROMPT,
+                messages=list(history)
+            )
+
+            reply = message.content[0].text
+            
+            # Додаємо відповідь в історію
+            history.append({"role": "assistant", "content": reply})
+
+            await ctx.reply(reply)
+        except anthropic.BadRequestError as e:
+            await ctx.reply("АХАХА, СЕР, ЩОСЬ ПІШЛО НЕ ТАК З МОЇМ МОЗКОМ!")
 
 #сoin
 @bot.command(aliases = ['монетка', 'Монетка'])
