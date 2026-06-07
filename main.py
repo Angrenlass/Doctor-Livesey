@@ -108,7 +108,7 @@ LIVESEY_PROMPT = """Ти - Доктор Лівсі, персонаж з укра
 
 # Зберігаємо останні 5 повідомлень для кожного каналу
 # channel_id → deque of {"role": ..., "content": ...}
-livesey_history: dict[int, deque] = defaultdict(lambda: deque(maxlen=10))
+livesey_history: dict[int, deque] = defaultdict(lambda: deque(maxlen=200))
 
 @bot.command(aliases=['Лівсі', 'лівсі', 'Ливси', 'ливси'])
 async def livesey(ctx, *, question: str = None):
