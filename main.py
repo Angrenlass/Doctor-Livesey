@@ -35,6 +35,41 @@ async def on_member_remove(member):
     channel = bot.get_channel(CHANNEL_MAIN)
     await channel.send(f'АХАХАХАХХА, ``{member.name}`` БІЛЬШЕ НЕ АХАХА УЧАСНИК НАШОГО ПРИТУЛКУ АХАХА')
 
+@bot.event
+async def on_message(message):
+    # Ігноруємо самого бота
+    if message.author == bot.user:
+        return
+
+    # Перевіряємо чи це реплай на повідомлення бота
+    if message.reference and message.reference.resolved:
+        replied_to = message.reference.resolved
+        if replied_to.author == bot.user:
+            ctx = await bot.get_context(message)
+            
+            async with message.channel.typing():
+                try:
+                    history = livesey_history[message.channel.id]
+                    history.append({"role": "user", "content": f"{message.author.display_name}: {message.content}"})
+
+                    client = anthropic.Anthropic(api_key=ANTHROPIC_TOKEN)
+                    response = client.messages.create(
+                        model="claude-haiku-4-5-20251001",
+                        max_tokens=150,
+                        system=LIVESEY_PROMPT,
+                        messages=list(history)
+                    )
+
+                    reply = response.content[0].text
+                    history.append({"role": "assistant", "content": reply})
+                    await message.reply(reply)
+
+                except anthropic.BadRequestError:
+                    await message.reply("АХАХА, СЕР, ЩОСЬ ПІШЛО НЕ ТАК З МОЇМ МОЗКОМ!")
+
+    # Це обов'язково — інакше звичайні команди перестануть працювати
+    await bot.process_commands(message)
+
 async def help_adm_embed(category):
     embed = discord.Embed(title=f'Help - {category.capitalize()} Commands', color=0x356FFF)
     for command, description in help_adm_pages[category].items():
